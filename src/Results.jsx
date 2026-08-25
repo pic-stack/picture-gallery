@@ -4,7 +4,7 @@ import BarcodeScanner from './barcode.jsx'
 
 
 import './App.css'
-
+//pls work
 const API_KEY = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY// restrict this in Google Cloud Console to Drive API + your domain
 const FLOWER_EMAIL_FOLDER_ID = import.meta.env.VITE_FLOWER_EMAIL_FOLDER_ID;
 
