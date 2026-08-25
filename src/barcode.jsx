@@ -5,15 +5,20 @@ import { BrowserMultiFormatReader } from "@zxing/library";
 const BarcodeScanner = ({ onScan }) => {
     const [result, setResult] = useState(null);
     const [videoDevice, setVideoDevice] = useState(null);
-    const [buttonText, setButtonText] = useState("Turn On Camera");
+    // Camera starts on automatically so scanning is the first thing the user sees.
+    const [cameraOn, setCameraOn] = useState(true);
 
     function handleButton() {
-        setButtonText(buttonText === "Turn On Camera" ? "Turn Off Camera" : "Turn On Camera");
+        
+        setCameraOn((on) => !on);
+        if(!cameraOn){
+            location.reload();
+        }
     }
 
     // Effect #1: find a video device, but only once scanning is turned on
     useEffect(() => {
-        if (buttonText !== "Turn Off Camera") return;
+        if (!cameraOn) return;
 
         const reader = new BrowserMultiFormatReader();
         async function init() {
@@ -24,18 +29,18 @@ const BarcodeScanner = ({ onScan }) => {
         }
 
         init();
-    }, [buttonText]);
+    }, [cameraOn]);
 
     // Effect #2: start decoding once we have a device, but only while turned on
     useEffect(() => {
-        if (buttonText !== "Turn Off Camera" || !videoDevice) return;
+        if (!cameraOn || !videoDevice) return;
 
         const reader = new BrowserMultiFormatReader();
         reader.decodeFromVideoDevice(videoDevice.deviceId, 'video', (result) => {
             if (result) {
                 setResult(result.text);
                 onScan?.(result.text);
-                setButtonText("Turn On Camera");
+                setCameraOn(false);
             }
         });
 
@@ -43,22 +48,35 @@ const BarcodeScanner = ({ onScan }) => {
         return () => {
             reader.reset();
         };
-    }, [buttonText, videoDevice]);
-
-
-
-
+    }, [cameraOn, videoDevice]);
 
     return (
-        <div>
-            <button onClick={handleButton}>{buttonText}</button>
+        <div className="scanner-section">
+            <div className={`scanner-frame${cameraOn ? ' is-active' : ''}`}>
+                {cameraOn ? (
+                    <video id="video" playsInline muted autoPlay />
+                ) : (
+                    <div className="scanner-placeholder">Camera off</div>
+                )}
+                <span className="corner tl" />
+                <span className="corner tr" />
+                <span className="corner bl" />
+                <span className="corner br" />
+            </div>
 
-            {result ? (
-                <p>Scanned Code: {result}</p>
-            ) : (
-                <p>Scanning...</p>
-            )}
-            <video id='video' width='600' height='400' />
+            <p className="scan-status">
+                {result ? (
+                    <>Scanned: <strong>{result}</strong></>
+                ) : cameraOn ? (
+                    'Point the camera at a barcode…'
+                ) : (
+                    'Camera is off'
+                )}
+            </p>
+
+            <button className="scan-toggle" onClick={handleButton}>
+                {cameraOn ? 'Turn Off Camera' : 'Turn On Camera'}
+            </button>
         </div>
     );
 };

@@ -8,21 +8,22 @@ import './App.css'
 
 
 function AppAI() {
-  
+
 
   return (
-    
+
       <div id="outter-most">
         <header>
+          <span className="eyebrow">Flower Email Lookup</span>
           <h1 id="top-text">Scan Bar Code to enter Order#</h1>
         </header>
 
 
         <Results/>
 
-        
+
       </div>
-    
+
   )
 }
 

@@ -9,7 +9,7 @@ import './App.css'
 // google drive folder (flower_email): 1Y8c16CG6TkgztQjkV3lf5lqHyIuwPio3
 
 const API_KEY = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY// restrict this in Google Cloud Console to Drive API + your domain
-const FLOWER_EMAIL_FOLDER_ID = '1Y8c16CG6TkgztQjkV3lf5lqHyIuwPio3'
+const FLOWER_EMAIL_FOLDER_ID = import.meta.env.VITE_FLOWER_EMAIL_FOLDER_ID;
 
 // 1) find the order-number folder inside flower_email
 async function getOrderFolderId(orderNumber, parentFolderId) {
@@ -43,8 +43,6 @@ async function getFolderImages(folderId) {
   return data.files
 }
 
-let randVar;
-
 function Results(){
     const [images, setImages] = useState([])
     const [loading, setLoading] = useState(false)
@@ -63,8 +61,7 @@ function Results(){
 
       if (!folderId) {
         setError(`No folder found for order #${orderNumber}`)
-
-        return 
+        return; 
       }
 
       const files = await getFolderImages(folderId)
@@ -86,22 +83,23 @@ function Results(){
       <div>
 
         <BarcodeScanner onScan={handleScan}/>
-      <EmailButton recipient="calvinhunter03@gmail.com"
-        subject="${orderNumber}"
-        body=""
+
+        <SearchBarCode onSearch={handleSearch} />
+
+        {lastScanned && (
+          <EmailButton
+            recipient="pic@ahsam.com"
+            subject={`${lastScanned}`}
+            body=""
+          />
+        )}
+
+        <PictureGallery
+          images={images}
+          loading={loading}
+          error={error}
+          searched={searched}
         />
-
-
-      <SearchBarCode onSearch={handleSearch} />
-
-  
-      <PictureGallery
-        images={images}
-        loading={loading}
-        error={error}
-        searched={searched}
-      />
-     
 
       </div>
   )
@@ -118,8 +116,6 @@ function SearchBarCode({ onSearch }) {
   return (
     <>
       <div id="outer-searchbar-div">
-
-
         <input
           id="search-input"
           type="number"
@@ -130,7 +126,6 @@ function SearchBarCode({ onSearch }) {
             if (e.key === 'Enter') handleSubmit()
           }}
         />
-        <br></br>
         <button id="search-button" onClick={handleSubmit}>
           <div id="search-button-text">Search</div>
         </button>
@@ -141,38 +136,23 @@ function SearchBarCode({ onSearch }) {
 
 function PictureGallery({ images, loading, error, searched }) {
   if (!searched) return null
-  if (loading) return <p>Loading images...</p>
-  if (error) return <p>{error}</p>
-  if (images.length === 0){
-    return 
-   return 
-   <div>
-    <p>No images found for this order.</p>
-       
-        </div>
-  
+  if (loading) return <p className="gallery-status">Loading images...</p>
+  if (error) return <p className="gallery-error">{error}</p>
+  if (images.length === 0) {
+    return <p className="gallery-empty">No images found for this order.</p>
   }
 
   return (
-    <div
-      id="picture-gallery"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '12px',
-        padding: '12px',
-      }}
-    >
+    <div id="picture-gallery">
       {images.map((file) => (
         <img
-  key={file.id}
-  src={`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`}
-  alt={file.name}
-  style={{ width: '250px', height: '250px', objectFit: 'contain' }}
-  onError={(e) => {
-    console.error(`Failed to load image: ${file.name} (${file.id})`)
-  }}
-/>
+          key={file.id}
+          src={`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`}
+          alt={file.name}
+          onError={(e) => {
+            console.error(`Failed to load image: ${file.name} (${file.id})`)
+          }}
+        />
       ))}
     </div>
   )
