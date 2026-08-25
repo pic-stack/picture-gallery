@@ -5,9 +5,6 @@ import BarcodeScanner from './barcode.jsx'
 
 import './App.css'
 
-// client id: 979321381043-72psorrk4i34qcivdtg2akote1tl0ak4.apps.googleusercontent.com
-// google drive folder (flower_email): 1Y8c16CG6TkgztQjkV3lf5lqHyIuwPio3
-
 const API_KEY = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY// restrict this in Google Cloud Console to Drive API + your domain
 const FLOWER_EMAIL_FOLDER_ID = import.meta.env.VITE_FLOWER_EMAIL_FOLDER_ID;
 
@@ -61,6 +58,7 @@ function Results(){
 
       if (!folderId) {
         setError(`No folder found for order #${orderNumber}`)
+        setLastScanned(orderNumber);
         return; 
       }
 
@@ -164,7 +162,7 @@ function EmailButton({ recipient, subject, body }) {
 
   return (
     <a href={mailtoLink} id="email-button">
-      Open Email
+      Email Pictures
     </a>
     
   );
