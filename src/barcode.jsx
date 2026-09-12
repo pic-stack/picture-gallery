@@ -36,8 +36,18 @@ const BarcodeScanner = ({ onScan }) => {
         if (!cameraOn || !videoDevice) return;
 
         const reader = new BrowserMultiFormatReader();
+        // Local flag (not React state) so it's always current, even across
+        // multiple frames decoded before a re-render happens.
+        let hasScanned = false;
+
         reader.decodeFromVideoDevice(videoDevice.deviceId, 'video', (result) => {
-            if (result) {
+            if (result && !hasScanned) {
+                hasScanned = true;
+                // Stop decoding immediately — don't wait for React state
+                // updates / effect cleanup, which can lag a frame or two
+                // behind and let the same barcode fire onScan repeatedly.
+                reader.reset();
+
                 setResult(result.text);
                 onScan?.(result.text);
                 setCameraOn(false);

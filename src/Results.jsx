@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import React from 'react'
 import BarcodeScanner from './barcode.jsx'
 
@@ -45,9 +45,22 @@ function Results(){
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [searched, setSearched] = useState(false)
-    const [lastScanned, setLastScanned] = useState(null) // guards against duplicate scans
+    const [lastScanned, setLastScanned] = useState(null) // used for display (e.g. EmailButton)
+
+    // Ref version of the last-scanned code, used for the duplicate-scan guard.
+    // Refs update immediately (unlike state, which updates on next render),
+    // so this reliably blocks rapid-fire duplicate scans even if several
+    // onScan calls land before React has re-rendered.
+    const lastScannedRef = useRef(null)
+
+    // Tracks the "generation" of the current search so that if an older,
+    // slower search resolves after a newer one has already started, its
+    // result gets ignored instead of overwriting the newer one.
+    const searchIdRef = useRef(0)
 
   async function handleSearch(orderNumber) {
+    const thisSearchId = ++searchIdRef.current
+
     setLoading(true)
     setError(null)
     setSearched(true)
@@ -56,23 +69,32 @@ function Results(){
     try {
       const folderId = await getOrderFolderId(orderNumber, FLOWER_EMAIL_FOLDER_ID)
 
+      // If a newer search has started since this one began, drop this result.
+      if (thisSearchId !== searchIdRef.current) return
+
       if (!folderId) {
         setError(`No folder found for order #${orderNumber}`)
-        setLastScanned(orderNumber);
-        return; 
+        return
       }
 
       const files = await getFolderImages(folderId)
+
+      if (thisSearchId !== searchIdRef.current) return
+
       setImages(files)
     } catch (err) {
+      if (thisSearchId !== searchIdRef.current) return
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
-      setLoading(false)
+      if (thisSearchId === searchIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
   function handleScan(code) {
-    if (code === lastScanned) return // ignore repeat reads of the same barcode
+    if (code === lastScannedRef.current) return // ignore repeat reads of the same barcode
+    lastScannedRef.current = code
     setLastScanned(code)
     handleSearch(code)
   }
