@@ -301,40 +301,46 @@ header {
   color: var(--danger);
 }
 
-/* ---------- Thumbnail wrapper + download button ---------- */
+/* ---------- Thumbnail wrapper + delete button ---------- */
 
 .thumb-wrapper {
   position: relative;
   display: inline-block;
 }
 
-.thumb-wrapper img {
-  cursor: pointer;
-}
-
-.thumb-download-btn {
+.thumb-delete-btn {
   position: absolute;
-  bottom: 14px;
+  top: 14px;
   right: 14px;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: none;
   background: rgba(14, 31, 22, 0.75);
   color: var(--text-h);
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
-.thumb-download-btn:hover {
-  background: var(--accent);
-  color: #10231a;
+.thumb-delete-btn:hover:not(:disabled) {
+  background: var(--danger);
+  color: #2a1310;
+}
+.thumb-delete-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
-/* ---------- Lightbox ---------- */
+/* ---------- Lightbox (click-to-enlarge) ---------- */
+
+.thumb-wrapper img {
+  cursor: pointer;
+}
 
 .lightbox-overlay {
   position: fixed;
@@ -385,4 +391,91 @@ header {
 .lightbox-controls button:hover {
   border-color: var(--accent);
   background: var(--accent-bg);
+}
+
+/* ---------- Delete confirmation dialog ---------- */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.confirm-box {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-sizing: border-box;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.confirm-box h2 {
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+
+.confirm-message {
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--text-dim);
+  line-height: 145%;
+  margin-bottom: 22px;
+  word-break: break-word;
+}
+.confirm-message strong {
+  color: var(--text-h);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.confirm-actions button {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 12px 22px;
+  min-height: 44px;
+  box-sizing: border-box;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: filter 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.confirm-cancel-btn {
+  color: var(--text-h);
+  background: transparent;
+  border: 1.5px solid var(--border-strong);
+}
+.confirm-cancel-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.confirm-delete-btn {
+  color: #2a1310;
+  background: var(--danger);
+  border: none;
+}
+.confirm-delete-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.confirm-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
