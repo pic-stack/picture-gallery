@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import React from 'react'
 import BarcodeScanner from './barcode.jsx'
 
@@ -278,19 +278,189 @@ function PictureGallery({ images, loading, error, searched, deletingId, onDelete
   )
 }
 
+// ---------- Lightbox with pinch/scroll zoom + drag-to-pan ----------
+
+const MIN_ZOOM = 1
+const MAX_ZOOM = 4
+const DOUBLE_TAP_ZOOM = 2.5
+
 function Lightbox({ file, onClose, onDeleteRequest }) {
   const fullSrc = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`
+
+  const [scale, setScale] = useState(1)
+  const [translate, setTranslate] = useState({ x: 0, y: 0 })
+
+  const frameRef = useRef(null)
+  // Pointer Events unify mouse drag and touch drag/pinch into one code path.
+  const pointersRef = useRef(new Map()) // pointerId -> { x, y }
+  const dragStateRef = useRef(null) // { startX, startY, startTx, startTy }
+  const pinchStateRef = useRef(null) // { startDistance, startScale }
+
+  function clampScale(value) {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value))
+  }
+
+  // Keeps the image from being dragged/pinched entirely off screen.
+  function clampTranslate(t, currentScale) {
+    if (!frameRef.current) return t
+    const rect = frameRef.current.getBoundingClientRect()
+    const maxX = (rect.width * (currentScale - 1)) / 2
+    const maxY = (rect.height * (currentScale - 1)) / 2
+    return {
+      x: Math.min(maxX, Math.max(-maxX, t.x)),
+      y: Math.min(maxY, Math.max(-maxY, t.y)),
+    }
+  }
+
+  function resetZoom() {
+    setScale(1)
+    setTranslate({ x: 0, y: 0 })
+  }
+
+  function applyScale(nextRaw) {
+    const next = clampScale(nextRaw)
+    setScale(next)
+    if (next === 1) {
+      setTranslate({ x: 0, y: 0 })
+    } else {
+      setTranslate((prev) => clampTranslate(prev, next))
+    }
+  }
+
+  // Manually bind wheel with { passive: false } — React's JSX onWheel can be
+  // registered as a passive listener, which silently blocks preventDefault()
+  // and lets the page scroll instead of the image zooming.
+  useEffect(() => {
+    const el = frameRef.current
+    if (!el) return
+
+    function handleWheel(e) {
+      e.preventDefault()
+      const delta = -e.deltaY * 0.0018
+      applyScale(scale + delta)
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale])
+
+  function handleDoubleClick() {
+    if (scale > 1) {
+      resetZoom()
+    } else {
+      applyScale(DOUBLE_TAP_ZOOM)
+    }
+  }
+
+  function distanceBetween(p1, p2) {
+    const dx = p1.x - p2.x
+    const dy = p1.y - p2.y
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  function handlePointerDown(e) {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    if (pointersRef.current.size === 2) {
+      // Two fingers down — start a pinch, cancel any single-finger drag.
+      const points = Array.from(pointersRef.current.values())
+      pinchStateRef.current = {
+        startDistance: distanceBetween(points[0], points[1]),
+        startScale: scale,
+      }
+      dragStateRef.current = null
+    } else if (pointersRef.current.size === 1 && scale > 1) {
+      dragStateRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startTx: translate.x,
+        startTy: translate.y,
+      }
+    }
+  }
+
+  function handlePointerMove(e) {
+    if (!pointersRef.current.has(e.pointerId)) return
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    if (pointersRef.current.size === 2 && pinchStateRef.current) {
+      const points = Array.from(pointersRef.current.values())
+      const newDistance = distanceBetween(points[0], points[1])
+      const ratio = newDistance / pinchStateRef.current.startDistance
+      applyScale(pinchStateRef.current.startScale * ratio)
+    } else if (dragStateRef.current && scale > 1) {
+      const dx = e.clientX - dragStateRef.current.startX
+      const dy = e.clientY - dragStateRef.current.startY
+      setTranslate(
+        clampTranslate(
+          { x: dragStateRef.current.startTx + dx, y: dragStateRef.current.startTy + dy },
+          scale
+        )
+      )
+    }
+  }
+
+  function handlePointerUp(e) {
+    pointersRef.current.delete(e.pointerId)
+
+    if (pointersRef.current.size < 2) {
+      pinchStateRef.current = null
+    }
+
+    if (pointersRef.current.size === 1 && scale > 1) {
+      // One finger lifted out of a pinch — resume panning with the remaining finger.
+      const [remaining] = Array.from(pointersRef.current.values())
+      dragStateRef.current = {
+        startX: remaining.x,
+        startY: remaining.y,
+        startTx: translate.x,
+        startTy: translate.y,
+      }
+    } else if (pointersRef.current.size === 0) {
+      dragStateRef.current = null
+    }
+  }
 
   return (
     <div className="lightbox-overlay" onClick={onClose}>
       <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-        <img src={fullSrc} alt={file.name} />
+        <div
+          className="lightbox-image-frame"
+          ref={frameRef}
+          onDoubleClick={handleDoubleClick}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <img
+            src={fullSrc}
+            alt={file.name}
+            draggable={false}
+            style={{
+              transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+              cursor: scale > 1 ? 'grab' : 'zoom-in',
+            }}
+          />
+        </div>
+
         <div className="lightbox-controls">
-          <button onClick={() => onDeleteRequest(file)}>
-            Delete
+          <button onClick={() => applyScale(scale - 0.5)} disabled={scale <= MIN_ZOOM}>
+            −
           </button>
+          <button onClick={resetZoom} disabled={scale === 1}>
+            Reset
+          </button>
+          <button onClick={() => applyScale(scale + 0.5)} disabled={scale >= MAX_ZOOM}>
+            +
+          </button>
+          <button onClick={() => onDeleteRequest(file)}>Delete</button>
           <button onClick={onClose}>Close</button>
         </div>
+
+        <p className="lightbox-hint">Scroll, pinch, or double-tap to zoom. Drag to pan.</p>
       </div>
     </div>
   )

@@ -362,17 +362,44 @@ header {
   max-height: 90vh;
 }
 
-.lightbox-content img {
-  max-width: 90vw;
-  max-height: 75vh;
-  object-fit: contain;
+.lightbox-image-frame {
+  position: relative;
+  width: 90vw;
+  height: 70vh;
+  max-width: 900px;
+  overflow: hidden; /* clips zoomed/panned content instead of letting it spill offscreen */
   border-radius: 10px;
   border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none; /* stops the browser's own pinch/scroll from fighting our pointer handlers */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.lightbox-image-frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  will-change: transform;
+  -webkit-user-drag: none;
+}
+
+.lightbox-hint {
+  margin-top: 10px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-dim);
 }
 
 .lightbox-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: center;
   margin-top: 16px;
 }
 
@@ -385,12 +412,19 @@ header {
   border: 1.5px solid var(--border-strong);
   border-radius: 999px;
   padding: 10px 22px;
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
   cursor: pointer;
   transition: border-color 0.25s, background 0.25s;
 }
-.lightbox-controls button:hover {
+.lightbox-controls button:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--accent-bg);
+}
+.lightbox-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* ---------- Delete confirmation dialog ---------- */
