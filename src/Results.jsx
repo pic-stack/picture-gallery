@@ -10,36 +10,46 @@ const FLOWER_EMAIL_FOLDER_ID = import.meta.env.VITE_FLOWER_EMAIL_FOLDER_ID;
 const DELETE_ENDPOINT_URL = import.meta.env.VITE_DELETE_ENDPOINT_URL;
 const DELETE_SECRET = import.meta.env.VITE_DELETE_SECRET;
 
-// 1) find the order-number folder inside flower_email
-async function getOrderFolderId(orderNumber, parentFolderId) {
+// 1) find ALL order-number folders inside flower_email
+// (returns every match so that if duplicate folders ever exist, no images get missed)
+async function getOrderFolderIds(orderNumber, parentFolderId) {
   const query = `'${parentFolderId}' in parents and name = '${orderNumber}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
     query
   )}&fields=files(id,name)&key=${API_KEY}`
 
-  const response = await fetch(url)
+  const response = await fetch(url, { cache: 'no-store' })
   if (!response.ok) {
     throw new Error(`Drive API error (folder lookup): ${response.status}`)
   }
 
   const data = await response.json()
-  return data.files.length > 0 ? data.files[0].id : null
+  return data.files.map((f) => f.id)
 }
 
-// 2) get all images inside that order folder
-async function getFolderImages(folderId) {
-  const query = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`
+// 2) get all images inside those order folders (exact duplicates hidden by checksum)
+async function getFolderImages(folderIds) {
+  const parents = folderIds.map((id) => `'${id}' in parents`).join(' or ')
+  const query = `(${parents}) and mimeType contains 'image/' and trashed = false`
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
     query
-  )}&fields=files(id,name,mimeType)&key=${API_KEY}`
+  )}&orderBy=createdTime&pageSize=200&fields=files(id,name,mimeType,md5Checksum)&key=${API_KEY}`
 
-  const response = await fetch(url)
+  const response = await fetch(url, { cache: 'no-store' })
   if (!response.ok) {
     throw new Error(`Drive API error (image list): ${response.status}`)
   }
 
   const data = await response.json()
-  return data.files
+
+  // Safety net: hide byte-for-byte identical images.
+  const seen = new Set()
+  return data.files.filter((f) => {
+    if (!f.md5Checksum) return true
+    if (seen.has(f.md5Checksum)) return false
+    seen.add(f.md5Checksum)
+    return true
+  })
 }
 
 // 3) ask the Apps Script web app to trash a specific file
@@ -95,21 +105,22 @@ function Results(){
     setLoading(true)
     setError(null)
     setSearched(true)
+    setLastScanned(null) // hide the email button until this search finishes
     setImages([])
     setDeleteError(null)
 
     try {
-      const folderId = await getOrderFolderId(orderNumber, FLOWER_EMAIL_FOLDER_ID)
+      const folderIds = await getOrderFolderIds(orderNumber, FLOWER_EMAIL_FOLDER_ID)
 
       // If a newer search has started since this one began, drop this result.
       if (thisSearchId !== searchIdRef.current) return
 
-      if (!folderId) {
+      if (folderIds.length === 0) {
         setError(`No folder found for order #${orderNumber}`)
         return
       }
 
-      const files = await getFolderImages(folderId)
+      const files = await getFolderImages(folderIds)
 
       if (thisSearchId !== searchIdRef.current) return
 
@@ -120,6 +131,12 @@ function Results(){
     } finally {
       if (thisSearchId === searchIdRef.current) {
         setLoading(false)
+        // Show the "Email Pictures" button for this order, whether it came from
+        // a barcode scan or was typed in. Shown even when no images were found,
+        // since that's exactly when you may want to email the first ones.
+        setLastScanned(orderNumber)
+        // Search finished: allow the same barcode to be scanned again to refresh.
+        lastScannedRef.current = null
       }
     }
   }
@@ -127,7 +144,6 @@ function Results(){
   function handleScan(code) {
     if (code === lastScannedRef.current) return // ignore repeat reads of the same barcode
     lastScannedRef.current = code
-    setLastScanned(code)
     handleSearch(code)
   }
 
@@ -254,11 +270,18 @@ function PictureGallery({ images, loading, error, searched, deletingId, onDelete
       {images.map((file) => (
         <div className="thumb-wrapper" key={file.id}>
           <img
-            src={`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`}
+            src={`https://drive.google.com/thumbnail?id=${file.id}&sz=w680`}
             alt={file.name}
+            loading="lazy"
             onClick={() => onImageClick(file)}
             onError={(e) => {
-              console.error(`Failed to load image: ${file.name} (${file.id})`)
+              // First failure: fall back to the full file once. Second failure: just log it.
+              if (!e.currentTarget.dataset.fellBack) {
+                e.currentTarget.dataset.fellBack = '1'
+                e.currentTarget.src = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`
+              } else {
+                console.error(`Failed to load image: ${file.name} (${file.id})`)
+              }
             }}
           />
           <button
