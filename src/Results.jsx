@@ -53,14 +53,15 @@ async function getFolderImages(folderIds) {
 }
 
 // 3) ask the Apps Script web app to trash a specific file
+// Uses GET (not POST): POST requests to the Apps Script web app were being rejected,
+// while GET requests work reliably from the browser.
 async function deleteImageFromDrive(fileId) {
-  const response = await fetch(DELETE_ENDPOINT_URL, {
-    method: 'POST',
-    // text/plain avoids a CORS preflight request that Apps Script web apps
-    // don't handle well — Apps Script still parses the JSON body fine.
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ fileId, secret: DELETE_SECRET }),
-  })
+  const url =
+    `${DELETE_ENDPOINT_URL}?action=delete` +
+    `&fileId=${encodeURIComponent(fileId)}` +
+    `&secret=${encodeURIComponent(DELETE_SECRET)}`
+
+  const response = await fetch(url, { cache: 'no-store' })
 
   if (!response.ok) {
     throw new Error(`Delete request failed: ${response.status}`)
@@ -521,14 +522,24 @@ function ConfirmDialog({ fileName, onConfirm, onCancel, isDeleting }) {
 
 
 function EmailButton({ recipient, subject, body }) {
-  const mailtoLink = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body || '')}`;
+  const enc = encodeURIComponent
+  // Opens the device's default mail app (Mail on Mac/iPhone, Gmail/Outlook on Android, etc.)
+  const mailtoLink = `mailto:${recipient}?subject=${enc(subject)}&body=${enc(body || '')}`
+  // Fallback for computers with no mail app set up: opens a Gmail compose window in the browser.
+  const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${enc(recipient)}&su=${enc(subject)}&body=${enc(body || '')}`
 
   return (
-    <a href={mailtoLink} id="email-button">
-      Email Pictures
-    </a>
-    
-  );
+    <div className="email-wrap">
+      <a href={mailtoLink} id="email-button">
+        Email Pictures
+      </a>
+      <p className="email-fallback">
+        Mail app didn't open?{' '}
+        <a href={gmailLink} target="_blank" rel="noopener noreferrer">Open in Gmail</a>
+        {' '}or email <strong>{recipient}</strong> with subject <strong>{subject}</strong>.
+      </p>
+    </div>
+  )
 }
 
 
