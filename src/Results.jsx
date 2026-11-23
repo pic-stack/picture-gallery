@@ -249,6 +249,13 @@ function SearchBarCode({ onSearch }) {
           autoComplete="off"
           enterKeyHint="search"
           placeholder="Order #"
+          onFocus={(e) => {
+              // Highlight the existing number: it stays visible until the user types,
+              // and the first digit they type replaces it. (setTimeout is needed so
+              // iOS Safari and desktop browsers don't clear the selection on tap.)
+              const el = e.target
+              setTimeout(() => el.setSelectionRange(0, el.value.length), 0)
+            }}
           value={value}
           onChange={(e) => setValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
           onKeyDown={(e) => {
@@ -542,11 +549,15 @@ function EmailButton({ recipient, subject, body }) {
       <a href={mailtoLink} id="email-button">
         Add Pictures
       </a>
+      
+      {/*
       <p className="email-fallback">
         Mail app didn't open?{' '}
         <a href={gmailLink} target="_blank" rel="noopener noreferrer">Open in Gmail</a>
         {' '}or email <strong>{recipient}</strong> with subject <strong>{subject}</strong>.
       </p>
+      */}
+      
     </div>
   )
 }
