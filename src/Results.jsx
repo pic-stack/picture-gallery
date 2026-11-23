@@ -242,10 +242,15 @@ function SearchBarCode({ onSearch }) {
       <div id="outer-searchbar-div">
         <input
           id="search-input"
-          type="number"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={6}
+          autoComplete="off"
+          enterKeyHint="search"
           placeholder="Order #"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => setValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSubmit()
           }}
@@ -480,16 +485,14 @@ function Lightbox({ file, onClose, onDeleteRequest }) {
           <button onClick={() => applyScale(scale + 0.5)} disabled={scale >= MAX_ZOOM}>
             +
           </button>
-
+        </div>
+          
           {/*
           <button onClick={() => onDeleteRequest(file)}>Delete</button>
           */}
 
+          <button class="close-button-inside" onClick={onClose}>Close</button>
 
-          
-        </div>
-
-        <button class="close-button-inside" onClick={onClose}>Close</button>
         <p className="lightbox-hint">Scroll, pinch, or double-tap to zoom. Drag to pan.</p>
       </div>
     </div>
