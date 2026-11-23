@@ -475,15 +475,21 @@ function Lightbox({ file, onClose, onDeleteRequest }) {
             −
           </button>
           <button onClick={resetZoom} disabled={scale === 1}>
-            Reset
+            ↺
           </button>
           <button onClick={() => applyScale(scale + 0.5)} disabled={scale >= MAX_ZOOM}>
             +
           </button>
+
+          {/*
           <button onClick={() => onDeleteRequest(file)}>Delete</button>
-          <button onClick={onClose}>Close</button>
+          */}
+
+
+          
         </div>
 
+        <button class="close-button-inside" onClick={onClose}>Close</button>
         <p className="lightbox-hint">Scroll, pinch, or double-tap to zoom. Drag to pan.</p>
       </div>
     </div>
@@ -531,7 +537,7 @@ function EmailButton({ recipient, subject, body }) {
   return (
     <div className="email-wrap">
       <a href={mailtoLink} id="email-button">
-        Email Pictures
+        Add Pictures
       </a>
       <p className="email-fallback">
         Mail app didn't open?{' '}
