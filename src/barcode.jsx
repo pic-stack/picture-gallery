@@ -106,6 +106,11 @@ const BarcodeScanner = ({ onScan }) => {
 
     return (
         <div className="scanner-section">
+
+            <button className="scan-toggle" onClick={handleReset}>
+                Reset camera
+            </button>
+            
             <div className={`scanner-frame${cameraOn ? ' is-active' : ''}`}>
                 {cameraOn ? (
                     // key={resetKey} makes React build a brand-new <video> element on every
@@ -132,9 +137,7 @@ const BarcodeScanner = ({ onScan }) => {
                 )}
             </p>
 
-            <button className="scan-toggle" onClick={handleReset}>
-                Reset camera
-            </button>
+            
         </div>
     );
 };

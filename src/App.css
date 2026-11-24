@@ -38,7 +38,7 @@ header {
 
 #top-text {
   margin-top: 6px;
-  padding-bottom: 15px;
+  
 }
 
 /* ---------- Scanner ---------- */
@@ -145,6 +145,7 @@ header {
 
 .scan-toggle {
   margin-top: 16px;
+  margin-bottom:16px;
   font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
