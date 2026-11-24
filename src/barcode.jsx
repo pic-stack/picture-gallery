@@ -4,20 +4,18 @@ import { BrowserMultiFormatReader } from "@zxing/library";
 
 const BarcodeScanner = ({ onScan }) => {
     const [result, setResult] = useState(null);
-    const [videoDevice, setVideoDevice] = useState(null);
     // Camera starts on automatically so scanning is the first thing the user sees.
     const [cameraOn, setCameraOn] = useState(true);
-    // Bumped every time "Reset camera" is pressed. Both effects below depend on it,
+    // Bumped every time "Reset camera" is pressed. The camera effect below depends on it,
     // so changing it tears the camera down and starts it again from scratch.
     const [resetKey, setResetKey] = useState(0);
     const [error, setError] = useState(null);
 
-    // Fully restart the camera: clear the last result, drop the old device,
-    // make sure the camera is on, and bump resetKey to re-run the effects.
+    // Fully restart the camera: clear the last result, make sure the camera
+    // is on, and bump resetKey to re-run the camera effect from scratch.
     function handleReset() {
         setResult(null);
         setError(null);
-        setVideoDevice(null);
         setCameraOn(true);
         setResetKey((k) => k + 1);
     }
@@ -50,70 +48,61 @@ const BarcodeScanner = ({ onScan }) => {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [cameraOn]);
 
-    // Effect #1: find a video device, but only once scanning is turned on
+    // Camera effect: start the BACK camera and decode, only while turned on
     useEffect(() => {
         if (!cameraOn) return;
-
-        // If a reset happens while we're still waiting for the device list,
-        // this flag stops the old request from setting state afterwards.
-        let cancelled = false;
-        const reader = new BrowserMultiFormatReader();
-
-        async function init() {
-            try {
-                const videoDevices = await reader.listVideoInputDevices();
-                if (cancelled) return;
-                if (videoDevices.length > 0) {
-                    setVideoDevice(videoDevices[0]);
-                } else {
-                    setError('No camera found.');
-                }
-            } catch (err) {
-                if (!cancelled) {
-                    setError('Camera unavailable. Allow camera access, then tap Reset camera.');
-                }
-            }
-        }
-
-        init();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [cameraOn, resetKey]);
-
-    // Effect #2: start decoding once we have a device, but only while turned on
-    useEffect(() => {
-        if (!cameraOn || !videoDevice) return;
 
         const reader = new BrowserMultiFormatReader();
         // Local flag (not React state) so it's always current, even across
         // multiple frames decoded before a re-render happens.
         let hasScanned = false;
+        // If this effect is cleaned up while the camera is still starting, this lets us
+        // shut the camera down when it finishes starting instead of leaving it running.
+        let cancelled = false;
+
+        function onDecode(result) {
+            if (result && !hasScanned) {
+                hasScanned = true;
+                // Stop decoding immediately — don't wait for React state
+                // updates / effect cleanup, which can lag a frame or two
+                // behind and let the same barcode fire onScan repeatedly.
+                reader.reset();
+
+                setResult(result.text);
+                onScan?.(result.text);
+                setCameraOn(false);
+            }
+        }
+
+        // Ask for the back ("environment") camera. "ideal" rather than "exact" means a
+        // laptop with only a front webcam still works instead of failing to start.
+        const constraints = { video: { facingMode: { ideal: 'environment' } } };
 
         Promise.resolve(
-            reader.decodeFromVideoDevice(videoDevice.deviceId, 'video', (result) => {
-                if (result && !hasScanned) {
-                    hasScanned = true;
-                    // Stop decoding immediately — don't wait for React state
-                    // updates / effect cleanup, which can lag a frame or two
-                    // behind and let the same barcode fire onScan repeatedly.
-                    reader.reset();
-
-                    setResult(result.text);
-                    onScan?.(result.text);
-                    setCameraOn(false);
-                }
+            typeof reader.decodeFromConstraints === 'function'
+                ? reader.decodeFromConstraints(constraints, 'video', onDecode)
+                : reader.decodeFromVideoDevice(null, 'video', onDecode) // null = back camera
+        )
+            .then(() => {
+                if (cancelled) reader.reset();
             })
-        ).catch(() => {
-            setError('Could not start the camera. Tap Reset camera to try again.');
-        });
+            .catch((err) => {
+                if (cancelled) return;
+                if (err && err.name === 'NotAllowedError') {
+                    setError('Camera access was blocked. Allow it, then tap Reset camera.');
+                } else if (err && err.name === 'NotFoundError') {
+                    setError('No camera found.');
+                } else {
+                    setError('Could not start the camera. Tap Reset camera to try again.');
+                }
+            });
 
         // cleanup so it doesn't keep decoding after turning off / unmounting
         return () => {
+            cancelled = true;
             reader.reset();
         };
-    }, [cameraOn, videoDevice, resetKey]);
+    }, [cameraOn, resetKey]);
 
     return (
         <div className="scanner-section">
